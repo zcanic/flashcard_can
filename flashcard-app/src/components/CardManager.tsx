@@ -7,12 +7,20 @@ type CardRow = Card & { deckName: string | null }
 
 const nowIso = () => new Date().toISOString()
 
-export default function CardManager() {
+type CardManagerProps = {
+  visibleDeckIds?: number[]
+}
+
+export default function CardManager({ visibleDeckIds }: CardManagerProps) {
   const [decks, setDecks] = useState<Deck[]>([])
   const [cards, setCards] = useState<Card[]>([])
   const [selectedDeckId, setSelectedDeckId] = useState<number | 'all'>('all')
+  const [keyword, setKeyword] = useState('')
   const [front, setFront] = useState('')
   const [back, setBack] = useState('')
+
+  const visibleDeckIdSet = useMemo(() => new Set(visibleDeckIds ?? []), [visibleDeckIds])
+  const hasVisibilityFilter = Array.isArray(visibleDeckIds)
 
   useEffect(() => {
     const load = async () => {
@@ -32,14 +40,36 @@ export default function CardManager() {
     return map
   }, [decks])
 
+  const availableDecks = useMemo(() => {
+    if (!hasVisibilityFilter) return decks
+    return decks.filter((deck) => deck.id && visibleDeckIdSet.has(deck.id))
+  }, [decks, hasVisibilityFilter, visibleDeckIdSet])
+
+  useEffect(() => {
+    if (selectedDeckId === 'all') return
+    if (!hasVisibilityFilter) return
+    if (!visibleDeckIdSet.has(selectedDeckId)) {
+      setSelectedDeckId('all')
+    }
+  }, [hasVisibilityFilter, selectedDeckId, visibleDeckIdSet])
+
   const visibleCards: CardRow[] = useMemo(() => {
     return cards
+      .filter((card) => (hasVisibilityFilter ? visibleDeckIdSet.has(card.deckId) : true))
       .filter((card) => (selectedDeckId === 'all' ? true : card.deckId === selectedDeckId))
+      .filter((card) => {
+        const trimmed = keyword.trim().toLowerCase()
+        if (!trimmed) return true
+        return (
+          card.front.toLowerCase().includes(trimmed) ||
+          card.back.toLowerCase().includes(trimmed)
+        )
+      })
       .map((card) => ({
         ...card,
         deckName: deckById.get(card.deckId) ?? null,
       }))
-  }, [cards, deckById, selectedDeckId])
+  }, [cards, deckById, hasVisibilityFilter, keyword, selectedDeckId, visibleDeckIdSet])
 
   const refreshCards = async () => {
     const cardItems = await db.cards.orderBy('updatedAt').reverse().toArray()
@@ -47,11 +77,11 @@ export default function CardManager() {
   }
 
   const createNewCard = async () => {
-    if (decks.length === 0) {
+    if (availableDecks.length === 0) {
       goeyToast.warning('请先创建牌组')
       return
     }
-    const deckId = selectedDeckId === 'all' ? decks[0].id : selectedDeckId
+    const deckId = selectedDeckId === 'all' ? availableDecks[0].id : selectedDeckId
     if (!deckId) return
     const trimmedFront = front.trim()
     const trimmedBack = back.trim()
@@ -117,12 +147,18 @@ export default function CardManager() {
             className="h-10 rounded-xl border border-stone-300 bg-white px-3 text-sm"
           >
             <option value="all">全部牌组</option>
-            {decks.map((deck) => (
+            {availableDecks.map((deck) => (
               <option key={deck.id} value={deck.id}>
                 {deck.name}
               </option>
             ))}
           </select>
+          <input
+            value={keyword}
+            onChange={(event) => setKeyword(event.target.value)}
+            placeholder="搜索卡片"
+            className="h-10 flex-1 rounded-xl border border-stone-300 bg-white px-3 text-sm"
+          />
           <span className="rounded-xl border border-stone-300 bg-stone-50 px-3 py-2 text-stone-500">
             {visibleCards.length} 张
           </span>

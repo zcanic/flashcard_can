@@ -5,6 +5,7 @@ import { Rating } from 'ts-fsrs'
 
 type StudyViewProps = {
   deckId?: number
+  visibleDeckIds?: number[]
 }
 
 const ratingLabels: Array<{ value: Rating; label: string; tone: string }> = [
@@ -14,14 +15,17 @@ const ratingLabels: Array<{ value: Rating; label: string; tone: string }> = [
   { value: Rating.Easy, label: 'Easy', tone: 'text-teal-700' },
 ]
 
-export default function StudyView({ deckId }: StudyViewProps) {
+export default function StudyView({ deckId, visibleDeckIds }: StudyViewProps) {
   const [cards, setCards] = useState<Card[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [reveal, setReveal] = useState(false)
 
   const loadCards = async () => {
     const nowIso = new Date().toISOString()
+    const visibleDeckIdSet = new Set(visibleDeckIds ?? [])
+    const hasVisibilityFilter = Array.isArray(visibleDeckIds)
     const list = await db.cards
+      .filter((card) => (hasVisibilityFilter ? visibleDeckIdSet.has(card.deckId) : true))
       .filter((card) => (deckId ? card.deckId === deckId : true))
       .filter((card) => card.dueAt <= nowIso)
       .toArray()
@@ -32,7 +36,7 @@ export default function StudyView({ deckId }: StudyViewProps) {
 
   useEffect(() => {
     loadCards()
-  }, [deckId])
+  }, [deckId, visibleDeckIds.join(',')])
 
   const current = cards[currentIndex]
 

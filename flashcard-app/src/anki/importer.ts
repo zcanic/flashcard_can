@@ -54,6 +54,7 @@ export async function importApkg(file: File) {
     const localId = await db.decks.add({
       name,
       hash: crypto.randomUUID(),
+      isHidden: false,
       createdAt: timestamp,
       updatedAt: timestamp,
     })

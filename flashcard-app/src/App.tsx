@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { GoeyToaster, goeyToast } from 'goey-toast'
 import { db, type Deck } from './data/db'
@@ -11,6 +11,7 @@ const nowIso = () => new Date().toISOString()
 
 function App() {
   const [activeTab, setActiveTab] = useState<'study' | 'library' | 'cards'>('study')
+  const [libraryFilter, setLibraryFilter] = useState<'all' | 'visible' | 'hidden'>('all')
   const [decks, setDecks] = useState<Deck[]>([])
   const [newName, setNewName] = useState('')
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -22,6 +23,28 @@ function App() {
     const items = await db.decks.orderBy('updatedAt').reverse().toArray()
     setDecks(items)
   }
+
+  const visibleDeckIds = useMemo(
+    () => decks.filter((deck) => deck.id && !deck.isHidden).map((deck) => deck.id as number),
+    [decks],
+  )
+
+  const visibleDeckCount = useMemo(
+    () => decks.filter((deck) => !deck.isHidden).length,
+    [decks],
+  )
+
+  const hiddenDeckCount = decks.length - visibleDeckCount
+
+  const filteredDecks = useMemo(() => {
+    if (libraryFilter === 'visible') {
+      return decks.filter((deck) => !deck.isHidden)
+    }
+    if (libraryFilter === 'hidden') {
+      return decks.filter((deck) => deck.isHidden)
+    }
+    return decks
+  }, [decks, libraryFilter])
 
   useEffect(() => {
     loadDecks()
@@ -37,6 +60,7 @@ function App() {
     await db.decks.add({
       name,
       hash: crypto.randomUUID(),
+      isHidden: false,
       createdAt: timestamp,
       updatedAt: timestamp,
     })
@@ -85,6 +109,32 @@ function App() {
       borderColor: '#e5ddd6',
       spring: false,
     })
+  }
+
+  const toggleDeckVisibility = async (deck: Deck) => {
+    if (!deck.id) return
+    const nextHidden = !deck.isHidden
+    await db.decks.update(deck.id, {
+      isHidden: nextHidden,
+      updatedAt: nowIso(),
+    })
+    await loadDecks()
+    goeyToast(nextHidden ? '已隐藏该牌组卡片' : '已恢复该牌组卡片', {
+      description: deck.name,
+      fillColor: '#f8f5f2',
+      borderColor: '#e5ddd6',
+      spring: false,
+    })
+  }
+
+  const setAllDeckVisibility = async (showAll: boolean) => {
+    const timestamp = nowIso()
+    await db.decks.toCollection().modify({
+      isHidden: !showAll,
+      updatedAt: timestamp,
+    })
+    await loadDecks()
+    goeyToast.success(showAll ? '已显示全部牌组卡片' : '已隐藏全部牌组卡片')
   }
 
   const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -146,6 +196,27 @@ function App() {
         <h2 className="text-sm font-semibold tracking-wide text-stone-700">牌组管理</h2>
         <p className="mt-1 text-xs text-stone-500">导入、创建和维护你的学习牌组。</p>
 
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+          <span className="rounded-lg border border-stone-300 bg-stone-50 px-2.5 py-1 text-stone-600">
+            显示中 {visibleDeckCount}
+          </span>
+          <span className="rounded-lg border border-stone-300 bg-stone-50 px-2.5 py-1 text-stone-600">
+            已隐藏 {hiddenDeckCount}
+          </span>
+          <button
+            onClick={() => setAllDeckVisibility(true)}
+            className="rounded-lg border border-stone-300 bg-white px-2.5 py-1 text-stone-600"
+          >
+            全部显示
+          </button>
+          <button
+            onClick={() => setAllDeckVisibility(false)}
+            className="rounded-lg border border-stone-300 bg-white px-2.5 py-1 text-stone-600"
+          >
+            全部隐藏
+          </button>
+        </div>
+
         <div className="mt-4 space-y-2">
           <input
             ref={fileRef}
@@ -173,15 +244,28 @@ function App() {
         </div>
       </section>
 
-      <StatsPanel />
+      <StatsPanel visibleDeckIds={visibleDeckIds} />
+
+      <section className="flex items-center justify-between rounded-2xl border border-stone-200 bg-white/70 px-3 py-2 text-xs text-stone-600">
+        <span>筛选牌组</span>
+        <select
+          value={libraryFilter}
+          onChange={(event) => setLibraryFilter(event.target.value as 'all' | 'visible' | 'hidden')}
+          className="rounded-lg border border-stone-300 bg-white px-2 py-1"
+        >
+          <option value="all">全部</option>
+          <option value="visible">仅显示中的牌组</option>
+          <option value="hidden">仅已隐藏牌组</option>
+        </select>
+      </section>
 
       <section className="space-y-3">
-        {decks.length === 0 ? (
+        {filteredDecks.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-stone-300 bg-white/60 p-6 text-center text-sm text-stone-500">
             暂无牌组，先创建一个。
           </div>
         ) : (
-          decks.map((deck) => (
+          filteredDecks.map((deck) => (
             <div key={deck.id} className="rounded-2xl border border-stone-200 bg-white/75 p-4 shadow-sm">
               {editingId === deck.id ? (
                 <div className="flex gap-2">
@@ -200,10 +284,23 @@ function App() {
               ) : (
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <p className="text-sm font-medium text-stone-800">{deck.name}</p>
+                    <p className="text-sm font-medium text-stone-800">
+                      {deck.name}
+                      {deck.isHidden ? (
+                        <span className="ml-2 rounded-md border border-stone-300 bg-stone-100 px-1.5 py-0.5 text-[10px] font-normal text-stone-500">
+                          已隐藏
+                        </span>
+                      ) : null}
+                    </p>
                     <p className="text-[11px] text-stone-500">{deck.hash}</p>
                   </div>
                   <div className="flex gap-2 text-xs">
+                    <button
+                      onClick={() => toggleDeckVisibility(deck)}
+                      className="rounded-lg border border-stone-300 bg-white px-3 py-1"
+                    >
+                      {deck.isHidden ? '显示卡片' : '隐藏卡片'}
+                    </button>
                     <button
                       onClick={() => beginEdit(deck)}
                       className="rounded-lg border border-stone-300 bg-white px-3 py-1"
@@ -251,9 +348,9 @@ function App() {
               transition={{ duration: 0.22, ease: 'easeOut' }}
               className="flex flex-1 flex-col gap-4"
             >
-              {activeTab === 'study' ? <StudyView /> : null}
+              {activeTab === 'study' ? <StudyView visibleDeckIds={visibleDeckIds} /> : null}
               {activeTab === 'library' ? renderLibrary() : null}
-              {activeTab === 'cards' ? <CardManager /> : null}
+              {activeTab === 'cards' ? <CardManager visibleDeckIds={visibleDeckIds} /> : null}
             </motion.div>
           </AnimatePresence>
         </div>

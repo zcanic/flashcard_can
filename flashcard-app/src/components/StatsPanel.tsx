@@ -8,7 +8,11 @@ type Stats = {
   reviewedToday: number
 }
 
-export default function StatsPanel() {
+type StatsPanelProps = {
+  visibleDeckIds?: number[]
+}
+
+export default function StatsPanel({ visibleDeckIds }: StatsPanelProps) {
   const [stats, setStats] = useState<Stats>({
     deckCount: 0,
     cardCount: 0,
@@ -18,24 +22,34 @@ export default function StatsPanel() {
 
   useEffect(() => {
     const load = async () => {
-      const [deckCount, cardCount] = await Promise.all([
-        db.decks.count(),
-        db.cards.count(),
-      ])
+      const visibleDeckIdSet = new Set(visibleDeckIds ?? [])
+      const hasVisibilityFilter = Array.isArray(visibleDeckIds)
+      const allDecks = await db.decks.toArray()
+      const deckCount = hasVisibilityFilter
+        ? allDecks.filter((deck) => deck.id && visibleDeckIdSet.has(deck.id)).length
+        : allDecks.filter((deck) => !deck.isHidden).length
+
+      const allCards = await db.cards.toArray()
+      const scopedCards = allCards.filter((card) =>
+        hasVisibilityFilter ? visibleDeckIdSet.has(card.deckId) : true,
+      )
+      const cardCount = scopedCards.length
       const nowIso = new Date().toISOString()
-      const dueToday = await db.cards.where('dueAt').belowOrEqual(nowIso).count()
+      const dueToday = scopedCards.filter((card) => card.dueAt <= nowIso).length
       const start = new Date()
       start.setHours(0, 0, 0, 0)
       const end = new Date()
       end.setHours(23, 59, 59, 999)
-      const reviewedToday = await db.reviewLogs
-        .where('reviewedAt')
-        .between(start.toISOString(), end.toISOString(), true, true)
-        .count()
+      const reviewedToday = (
+        await db.reviewLogs
+          .where('reviewedAt')
+          .between(start.toISOString(), end.toISOString(), true, true)
+          .toArray()
+      ).filter((log) => (hasVisibilityFilter ? visibleDeckIdSet.has(log.deckId) : true)).length
       setStats({ deckCount, cardCount, dueToday, reviewedToday })
     }
     load()
-  }, [])
+  }, [visibleDeckIds.join(',')])
 
   return (
     <section className="rounded-3xl border border-stone-200 bg-white/70 p-5 shadow-sm">

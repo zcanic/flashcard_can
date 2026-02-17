@@ -4,6 +4,7 @@ export type Deck = {
   id?: number
   name: string
   hash: string
+  isHidden: boolean
   createdAt: string
   updatedAt: string
 }
@@ -52,6 +53,22 @@ class FlashcardDB extends Dexie {
       cards: '++id,deckId,dueAt,updatedAt',
       reviewLogs: '++id,cardId,deckId,reviewedAt',
     })
+    this.version(2)
+      .stores({
+        decks: '++id,hash,isHidden,updatedAt',
+        cards: '++id,deckId,dueAt,updatedAt',
+        reviewLogs: '++id,cardId,deckId,reviewedAt',
+      })
+      .upgrade((tx) =>
+        tx
+          .table('decks')
+          .toCollection()
+          .modify((deck) => {
+            if (deck.isHidden === undefined) {
+              deck.isHidden = false
+            }
+          }),
+      )
   }
 }
 
