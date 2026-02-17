@@ -8,6 +8,7 @@ import { importApkg } from './anki/importer'
 const nowIso = () => new Date().toISOString()
 
 function App() {
+  const [activeTab, setActiveTab] = useState<'study' | 'library' | 'cards'>('study')
   const [decks, setDecks] = useState<Deck[]>([])
   const [newName, setNewName] = useState('')
   const [editingId, setEditingId] = useState<number | null>(null)
@@ -75,106 +76,142 @@ function App() {
     if (fileRef.current) fileRef.current.value = ''
   }
 
-  return (
-    <main className="min-h-screen bg-[#f6f3ef] text-[#1f2a24]">
-      <section className="mx-auto flex min-h-screen w-full max-w-md flex-col gap-6 px-6 py-10">
-        <header className="space-y-3">
-          <div className="w-fit rounded-full border border-[#e1d8cf] bg-white/80 px-4 py-1 text-xs tracking-[0.35em] text-[#8a7f76]">
-            OPEN TO STUDY
+  const formatToday = () =>
+    new Date().toLocaleDateString('zh-CN', {
+      month: 'long',
+      day: 'numeric',
+      weekday: 'short',
+    })
+
+  const renderLibrary = () => (
+    <>
+      <section className="rounded-3xl border border-stone-200/70 bg-white/80 p-5 shadow-sm backdrop-blur">
+        <h2 className="text-sm font-semibold tracking-wide text-stone-700">牌组管理</h2>
+        <p className="mt-1 text-xs text-stone-500">导入、创建和维护你的学习牌组。</p>
+
+        <div className="mt-4 space-y-2">
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".apkg"
+            onChange={handleImport}
+            className="block w-full text-xs text-stone-500 file:mr-3 file:rounded-lg file:border file:border-stone-300 file:bg-stone-100 file:px-3 file:py-1.5 file:text-xs"
+          />
+          {importStatus && <div className="text-xs text-stone-500">{importStatus}</div>}
+        </div>
+
+        <div className="mt-4 flex gap-2">
+          <input
+            value={newName}
+            onChange={(event) => setNewName(event.target.value)}
+            placeholder="例如：N2 高频词"
+            className="h-10 flex-1 rounded-xl border border-stone-300 bg-white px-3 text-sm outline-none focus:border-rose-300"
+          />
+          <button
+            onClick={createDeck}
+            className="h-10 rounded-xl border border-rose-200 bg-rose-100/70 px-4 text-sm font-medium text-stone-700"
+          >
+            新建
+          </button>
+        </div>
+      </section>
+
+      <StatsPanel />
+
+      <section className="space-y-3">
+        {decks.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-stone-300 bg-white/60 p-6 text-center text-sm text-stone-500">
+            暂无牌组，先创建一个。
           </div>
-          <h1 className="text-3xl font-semibold tracking-tight">牌组</h1>
-          <p className="text-sm leading-6 text-[#6f665e]">
-            管理你的学习空间。创建、重命名或移除牌组。
-          </p>
-          <div className="space-y-2">
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".apkg"
-              onChange={handleImport}
-              className="block w-full text-xs text-[#8a7f76] file:mr-4 file:rounded-xl file:border file:border-[#e5dad0] file:bg-white/80 file:px-4 file:py-2 file:text-xs file:text-[#6f665e]"
-            />
-            {importStatus && (
-              <div className="text-xs text-[#8a7f76]">{importStatus}</div>
-            )}
+        ) : (
+          decks.map((deck) => (
+            <div key={deck.id} className="rounded-2xl border border-stone-200 bg-white/75 p-4 shadow-sm">
+              {editingId === deck.id ? (
+                <div className="flex gap-2">
+                  <input
+                    value={editingName}
+                    onChange={(event) => setEditingName(event.target.value)}
+                    className="h-10 flex-1 rounded-xl border border-stone-300 bg-white px-3 text-sm"
+                  />
+                  <button
+                    onClick={saveEdit}
+                    className="h-10 rounded-xl border border-rose-200 bg-rose-100/70 px-3 text-xs font-medium"
+                  >
+                    保存
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-stone-800">{deck.name}</p>
+                    <p className="text-[11px] text-stone-500">{deck.hash}</p>
+                  </div>
+                  <div className="flex gap-2 text-xs">
+                    <button
+                      onClick={() => beginEdit(deck)}
+                      className="rounded-lg border border-stone-300 bg-white px-3 py-1"
+                    >
+                      重命名
+                    </button>
+                    <button
+                      onClick={() => deleteDeck(deck.id)}
+                      className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1 text-rose-700"
+                    >
+                      删除
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </section>
+    </>
+  )
+
+  return (
+    <main className="min-h-screen bg-gradient-to-b from-stone-100 via-rose-50/40 to-stone-100 text-stone-900">
+      <section className="mx-auto flex min-h-screen w-full max-w-md flex-col px-5 pb-24 pt-7">
+        <header className="mb-5 flex items-center justify-between">
+          <div>
+            <div className="text-[11px] uppercase tracking-[0.22em] text-stone-500">Focus Study</div>
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-stone-800">
+              {activeTab === 'study' ? '今日学习' : activeTab === 'library' ? '学习库' : '卡片编辑'}
+            </h1>
+          </div>
+          <div className="rounded-full border border-rose-200 bg-rose-100/70 px-3 py-1 text-xs text-stone-600">
+            {formatToday()}
           </div>
         </header>
 
-        <div className="rounded-2xl border border-[#e5dad0] bg-white/80 p-4 shadow-[0_20px_40px_-30px_rgba(31,42,36,0.45)]">
-          <label className="text-xs text-[#8a7f76]">新建牌组</label>
-          <div className="mt-2 flex gap-2">
-            <input
-              value={newName}
-              onChange={(event) => setNewName(event.target.value)}
-              placeholder="例如：TOEIC 高频"
-              className="h-11 flex-1 rounded-xl border border-[#e5dad0] bg-white px-3 text-sm outline-none focus:border-[#cbbfb3]"
-            />
+        <div className="flex flex-1 flex-col gap-4">
+          {activeTab === 'study' ? <StudyView /> : null}
+          {activeTab === 'library' ? renderLibrary() : null}
+          {activeTab === 'cards' ? <CardManager /> : null}
+        </div>
+
+        <nav className="fixed bottom-4 left-1/2 z-20 w-[min(420px,calc(100%-2rem))] -translate-x-1/2 rounded-2xl border border-stone-200 bg-white/85 p-2 shadow-lg backdrop-blur">
+          <div className="grid grid-cols-3 gap-2 text-xs">
             <button
-              onClick={createDeck}
-              className="h-11 rounded-xl border border-[#d9cec3] bg-[#f6f3ef] px-4 text-sm font-medium"
+              onClick={() => setActiveTab('study')}
+              className={`h-10 rounded-xl ${activeTab === 'study' ? 'bg-rose-100 text-stone-900' : 'text-stone-500'}`}
             >
-              添加
+              学习
+            </button>
+            <button
+              onClick={() => setActiveTab('library')}
+              className={`h-10 rounded-xl ${activeTab === 'library' ? 'bg-rose-100 text-stone-900' : 'text-stone-500'}`}
+            >
+              牌组
+            </button>
+            <button
+              onClick={() => setActiveTab('cards')}
+              className={`h-10 rounded-xl ${activeTab === 'cards' ? 'bg-rose-100 text-stone-900' : 'text-stone-500'}`}
+            >
+              卡片
             </button>
           </div>
-        </div>
-
-        <StudyView />
-
-        <StatsPanel />
-
-        <div className="space-y-3">
-          {decks.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-[#e1d8cf] bg-white/50 p-6 text-center text-sm text-[#8a7f76]">
-              暂无牌组，先创建一个。
-            </div>
-          ) : (
-            decks.map((deck) => (
-              <div
-                key={deck.id}
-                className="rounded-2xl border border-[#e8ded4] bg-white/70 p-4"
-              >
-                {editingId === deck.id ? (
-                  <div className="flex gap-2">
-                    <input
-                      value={editingName}
-                      onChange={(event) => setEditingName(event.target.value)}
-                      className="h-10 flex-1 rounded-xl border border-[#e5dad0] bg-white px-3 text-sm"
-                    />
-                    <button
-                      onClick={saveEdit}
-                      className="h-10 rounded-xl border border-[#d9cec3] bg-[#f6f3ef] px-3 text-xs font-medium"
-                    >
-                      保存
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <p className="text-base font-medium">{deck.name}</p>
-                      <p className="text-xs text-[#8a7f76]">Hash: {deck.hash}</p>
-                    </div>
-                    <div className="flex gap-2 text-xs">
-                      <button
-                        onClick={() => beginEdit(deck)}
-                        className="rounded-lg border border-[#e5dad0] px-3 py-1"
-                      >
-                        重命名
-                      </button>
-                      <button
-                        onClick={() => deleteDeck(deck.id)}
-                        className="rounded-lg border border-[#eaded6] px-3 py-1 text-[#9b6b5a]"
-                      >
-                        删除
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))
-          )}
-        </div>
-
-        <CardManager />
+        </nav>
       </section>
     </main>
   )

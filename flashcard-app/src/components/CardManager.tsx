@@ -85,18 +85,18 @@ export default function CardManager() {
   return (
     <section className="space-y-4">
       <header className="space-y-2">
-        <h2 className="text-lg font-semibold">卡片</h2>
-        <p className="text-xs text-[#8a7f76]">针对牌组添加卡片，支持后续导入/导出。</p>
+        <h2 className="text-lg font-semibold text-stone-800">卡片</h2>
+        <p className="text-xs text-stone-500">在这里添加和维护卡片内容。</p>
       </header>
 
-      <div className="rounded-2xl border border-[#e5dad0] bg-white/80 p-4">
+      <div className="rounded-2xl border border-stone-200 bg-white/80 p-4 shadow-sm">
         <div className="flex flex-wrap gap-2 text-xs">
           <select
             value={selectedDeckId}
             onChange={(event) =>
               setSelectedDeckId(event.target.value === 'all' ? 'all' : Number(event.target.value))
             }
-            className="h-10 rounded-xl border border-[#e5dad0] bg-white px-3 text-sm"
+            className="h-10 rounded-xl border border-stone-300 bg-white px-3 text-sm"
           >
             <option value="all">全部牌组</option>
             {decks.map((deck) => (
@@ -105,7 +105,7 @@ export default function CardManager() {
               </option>
             ))}
           </select>
-          <span className="rounded-xl border border-[#e8ded4] px-3 py-2 text-[#8a7f76]">
+          <span className="rounded-xl border border-stone-300 bg-stone-50 px-3 py-2 text-stone-500">
             {visibleCards.length} 张
           </span>
         </div>
@@ -114,17 +114,17 @@ export default function CardManager() {
             value={front}
             onChange={(event) => setFront(event.target.value)}
             placeholder="正面（Markdown）"
-            className="h-20 w-full resize-none rounded-xl border border-[#e5dad0] bg-white px-3 py-2 text-sm"
+            className="h-20 w-full resize-none rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm"
           />
           <textarea
             value={back}
             onChange={(event) => setBack(event.target.value)}
             placeholder="背面（Markdown）"
-            className="h-20 w-full resize-none rounded-xl border border-[#e5dad0] bg-white px-3 py-2 text-sm"
+            className="h-20 w-full resize-none rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm"
           />
           <button
             onClick={createNewCard}
-            className="h-11 w-full rounded-xl border border-[#d9cec3] bg-[#f6f3ef] text-sm font-medium"
+            className="h-11 w-full rounded-xl border border-rose-200 bg-rose-100/70 text-sm font-medium text-stone-700"
           >
             添加卡片
           </button>
@@ -133,21 +133,21 @@ export default function CardManager() {
 
       <div className="space-y-3">
         {visibleCards.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-[#e1d8cf] bg-white/50 p-6 text-center text-sm text-[#8a7f76]">
+          <div className="rounded-2xl border border-dashed border-stone-300 bg-white/50 p-6 text-center text-sm text-stone-500">
             暂无卡片。
           </div>
         ) : (
           visibleCards.map((card) => (
-            <div key={card.id} className="rounded-2xl border border-[#e8ded4] bg-white/70 p-4">
+            <div key={card.id} className="rounded-2xl border border-stone-200 bg-white/75 p-4 shadow-sm">
               <div className="space-y-1">
-                <p className="text-sm font-medium">{card.front}</p>
-                <p className="text-xs text-[#8a7f76]">{card.back}</p>
-                <p className="text-[11px] text-[#9c9288]">{card.deckName ?? '未命名'} · Due {new Date(card.dueAt).toLocaleDateString()}</p>
+                <p className="text-sm font-medium text-stone-800">{card.front}</p>
+                <p className="text-xs text-stone-600">{card.back}</p>
+                <p className="text-[11px] text-stone-500">{card.deckName ?? '未命名'} · Due {new Date(card.dueAt).toLocaleDateString()}</p>
               </div>
               <div className="mt-3 flex justify-end">
                 <button
                   onClick={() => deleteCard(card.id)}
-                  className="rounded-lg border border-[#eaded6] px-3 py-1 text-xs text-[#9b6b5a]"
+                  className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1 text-xs text-rose-700"
                 >
                   删除
                 </button>

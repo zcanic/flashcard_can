@@ -38,27 +38,27 @@ export default function StatsPanel() {
   }, [])
 
   return (
-    <section className="rounded-3xl border border-[#e8ded4] bg-white/70 p-6">
+    <section className="rounded-3xl border border-stone-200 bg-white/70 p-5 shadow-sm">
       <header className="space-y-2">
-        <div className="text-xs text-[#8a7f76]">统计</div>
-        <div className="text-lg font-semibold">学习概览</div>
+        <div className="text-xs text-stone-500">统计</div>
+        <div className="text-lg font-semibold text-stone-800">学习概览</div>
       </header>
       <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-        <div className="rounded-2xl border border-[#e5dad0] bg-white/80 p-4">
-          <div className="text-xs text-[#8a7f76]">牌组</div>
-          <div className="mt-1 text-xl font-semibold">{stats.deckCount}</div>
+        <div className="rounded-2xl border border-stone-200 bg-white/85 p-4">
+          <div className="text-xs text-stone-500">牌组</div>
+          <div className="mt-1 text-xl font-semibold text-stone-800">{stats.deckCount}</div>
         </div>
-        <div className="rounded-2xl border border-[#e5dad0] bg-white/80 p-4">
-          <div className="text-xs text-[#8a7f76]">卡片</div>
-          <div className="mt-1 text-xl font-semibold">{stats.cardCount}</div>
+        <div className="rounded-2xl border border-stone-200 bg-white/85 p-4">
+          <div className="text-xs text-stone-500">卡片</div>
+          <div className="mt-1 text-xl font-semibold text-stone-800">{stats.cardCount}</div>
         </div>
-        <div className="rounded-2xl border border-[#e5dad0] bg-white/80 p-4">
-          <div className="text-xs text-[#8a7f76]">待复习</div>
-          <div className="mt-1 text-xl font-semibold">{stats.dueToday}</div>
+        <div className="rounded-2xl border border-stone-200 bg-white/85 p-4">
+          <div className="text-xs text-stone-500">待复习</div>
+          <div className="mt-1 text-xl font-semibold text-stone-800">{stats.dueToday}</div>
         </div>
-        <div className="rounded-2xl border border-[#e5dad0] bg-white/80 p-4">
-          <div className="text-xs text-[#8a7f76]">今日已复习</div>
-          <div className="mt-1 text-xl font-semibold">{stats.reviewedToday}</div>
+        <div className="rounded-2xl border border-stone-200 bg-white/85 p-4">
+          <div className="text-xs text-stone-500">今日已复习</div>
+          <div className="mt-1 text-xl font-semibold text-stone-800">{stats.reviewedToday}</div>
         </div>
       </div>
     </section>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { db, type Card } from '../data/db'
 import { reviewCard } from '../fsrs/engine'
 import { Rating } from 'ts-fsrs'
@@ -8,10 +8,10 @@ type StudyViewProps = {
 }
 
 const ratingLabels: Array<{ value: Rating; label: string; tone: string }> = [
-  { value: Rating.Again, label: 'Again', tone: 'text-[#9b6b5a]' },
-  { value: Rating.Hard, label: 'Hard', tone: 'text-[#7c6b5d]' },
-  { value: Rating.Good, label: 'Good', tone: 'text-[#4a5a52]' },
-  { value: Rating.Easy, label: 'Easy', tone: 'text-[#3f6b62]' },
+  { value: Rating.Again, label: 'Again', tone: 'text-rose-700' },
+  { value: Rating.Hard, label: 'Hard', tone: 'text-stone-600' },
+  { value: Rating.Good, label: 'Good', tone: 'text-stone-800' },
+  { value: Rating.Easy, label: 'Easy', tone: 'text-teal-700' },
 ]
 
 export default function StudyView({ deckId }: StudyViewProps) {
@@ -30,7 +30,7 @@ export default function StudyView({ deckId }: StudyViewProps) {
     setReveal(false)
   }
 
-  useMemo(() => {
+  useEffect(() => {
     loadCards()
   }, [deckId])
 
@@ -68,22 +68,27 @@ export default function StudyView({ deckId }: StudyViewProps) {
   }
 
   return (
-    <section className="rounded-3xl border border-[#e8ded4] bg-white/70 p-6 shadow-[0_20px_50px_-35px_rgba(31,42,36,0.45)]">
+    <section className="rounded-3xl border border-stone-200 bg-white/70 p-5 shadow-[0_20px_45px_-30px_rgba(28,25,23,0.25)] backdrop-blur">
       <header className="space-y-2">
-        <div className="text-xs text-[#8a7f76]">今日待复习</div>
-        <div className="text-2xl font-semibold">{cards.length} 张</div>
+        <div className="text-xs tracking-wide text-stone-500">今日待复习</div>
+        <div className="text-3xl font-semibold text-stone-800">{cards.length}</div>
       </header>
 
       {current ? (
-        <div className="mt-6 space-y-4">
-          <div className="rounded-2xl border border-[#e5dad0] bg-white/80 p-5">
-            <p className="text-base font-medium">{current.front}</p>
+        <div className="mt-5 space-y-4">
+          <div className="rounded-3xl border border-rose-100/70 bg-gradient-to-b from-white to-rose-50/35 p-6">
+            <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Front</div>
+            <p className="mt-3 text-base leading-7 text-stone-800">{current.front}</p>
             {reveal ? (
-              <p className="mt-4 text-sm text-[#6f665e]">{current.back}</p>
+              <>
+                <div className="my-4 h-px bg-stone-200" />
+                <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Back</div>
+                <p className="mt-3 text-sm leading-7 text-stone-700">{current.back}</p>
+              </>
             ) : (
               <button
                 onClick={() => setReveal(true)}
-                className="mt-4 rounded-xl border border-[#e5dad0] px-4 py-2 text-xs"
+                className="mt-5 h-10 rounded-xl border border-rose-200 bg-rose-100/70 px-4 text-xs font-medium text-stone-700"
               >
                 显示答案
               </button>
@@ -96,7 +101,7 @@ export default function StudyView({ deckId }: StudyViewProps) {
                 <button
                   key={item.value}
                   onClick={() => handleRating(item.value)}
-                  className={`h-11 rounded-xl border border-[#e5dad0] bg-white text-sm font-medium ${item.tone}`}
+                  className={`h-11 rounded-xl border border-stone-200 bg-white/90 text-sm font-medium ${item.tone}`}
                 >
                   {item.label}
                 </button>
@@ -105,7 +110,7 @@ export default function StudyView({ deckId }: StudyViewProps) {
           )}
         </div>
       ) : (
-        <div className="mt-6 rounded-2xl border border-dashed border-[#e1d8cf] bg-white/50 p-6 text-center text-sm text-[#8a7f76]">
+        <div className="mt-5 rounded-2xl border border-dashed border-stone-300 bg-white/60 p-10 text-center text-sm text-stone-500">
           今天没有待复习卡片。
         </div>
       )}
