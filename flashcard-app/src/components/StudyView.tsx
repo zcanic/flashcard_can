@@ -68,27 +68,32 @@ export default function StudyView({ deckId }: StudyViewProps) {
   }
 
   return (
-    <section className="rounded-3xl border border-stone-200 bg-white/70 p-5 shadow-[0_20px_45px_-30px_rgba(28,25,23,0.25)] backdrop-blur">
-      <header className="space-y-2">
-        <div className="text-xs tracking-wide text-stone-500">今日待复习</div>
-        <div className="text-3xl font-semibold text-stone-800">{cards.length}</div>
+    <section className="flex min-h-[calc(100vh-11rem)] flex-col">
+      <header className="mb-4 flex items-end justify-between">
+        <div>
+          <div className="text-xs tracking-wide text-stone-500">今日待复习</div>
+          <div className="text-4xl font-semibold text-stone-800">{cards.length}</div>
+        </div>
+        <div className="text-xs text-stone-500">卡片模式</div>
       </header>
 
       {current ? (
-        <div className="mt-5 space-y-4">
-          <div className="rounded-3xl border border-rose-100/70 bg-gradient-to-b from-white to-rose-50/35 p-6">
+        <div className="flex flex-1 flex-col">
+          <div className="flex flex-1 flex-col rounded-3xl border border-stone-200 bg-white p-7 shadow-[0_22px_42px_-34px_rgba(28,25,23,0.45)]">
             <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Front</div>
-            <p className="mt-3 text-base leading-7 text-stone-800">{current.front}</p>
+            <div className="mt-4 flex flex-1 items-center justify-center py-8">
+              <p className="max-w-3xl text-center text-2xl leading-relaxed text-stone-800">{current.front}</p>
+            </div>
             {reveal ? (
               <>
                 <div className="my-4 h-px bg-stone-200" />
                 <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Back</div>
-                <p className="mt-3 text-sm leading-7 text-stone-700">{current.back}</p>
+                <p className="mt-3 pb-2 text-lg leading-relaxed text-stone-700">{current.back}</p>
               </>
             ) : (
               <button
                 onClick={() => setReveal(true)}
-                className="mt-5 h-10 rounded-xl border border-rose-200 bg-rose-100/70 px-4 text-xs font-medium text-stone-700"
+                className="mt-2 h-12 rounded-xl border border-rose-200 bg-rose-100/80 px-4 text-sm font-medium text-stone-700"
               >
                 显示答案
               </button>
@@ -96,12 +101,12 @@ export default function StudyView({ deckId }: StudyViewProps) {
           </div>
 
           {reveal && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="mt-4 grid grid-cols-2 gap-3">
               {ratingLabels.map((item) => (
                 <button
                   key={item.value}
                   onClick={() => handleRating(item.value)}
-                  className={`h-11 rounded-xl border border-stone-200 bg-white/90 text-sm font-medium ${item.tone}`}
+                  className={`h-12 rounded-xl border border-stone-200 bg-white text-sm font-medium ${item.tone}`}
                 >
                   {item.label}
                 </button>
@@ -110,8 +115,8 @@ export default function StudyView({ deckId }: StudyViewProps) {
           )}
         </div>
       ) : (
-        <div className="mt-5 rounded-2xl border border-dashed border-stone-300 bg-white/60 p-10 text-center text-sm text-stone-500">
-          今天没有待复习卡片。
+        <div className="flex flex-1 items-center justify-center rounded-3xl border border-dashed border-stone-300 bg-white/70 p-10 text-center text-sm text-stone-500">
+          今天没有待复习卡片，去牌组页导入或新建后即可开始。
         </div>
       )}
     </section>

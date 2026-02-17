@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { GoeyToaster, goeyToast } from 'goey-toast'
 import { db, type Deck } from './data/db'
 import CardManager from './components/CardManager'
 import StudyView from './components/StudyView'
@@ -27,7 +29,10 @@ function App() {
 
   const createDeck = async () => {
     const name = newName.trim()
-    if (!name) return
+    if (!name) {
+      goeyToast.warning('请输入牌组名称', { spring: true, bounce: 0.22 })
+      return
+    }
     const timestamp = nowIso()
     await db.decks.add({
       name,
@@ -37,6 +42,13 @@ function App() {
     })
     setNewName('')
     await loadDecks()
+    goeyToast.success('牌组已创建', {
+      description: `已添加：${name}`,
+      fillColor: '#f7e8ec',
+      borderColor: '#e7cfd7',
+      spring: true,
+      bounce: 0.26,
+    })
   }
 
   const beginEdit = (deck: Deck) => {
@@ -48,30 +60,75 @@ function App() {
   const saveEdit = async () => {
     if (!editingId) return
     const name = editingName.trim()
-    if (!name) return
+    if (!name) {
+      goeyToast.warning('名称不能为空')
+      return
+    }
     await db.decks.update(editingId, { name, updatedAt: nowIso() })
     setEditingId(null)
     setEditingName('')
     await loadDecks()
+    goeyToast('牌组已重命名', {
+      description: name,
+      fillColor: '#f8f5f2',
+      borderColor: '#e5ddd6',
+      spring: false,
+    })
   }
 
   const deleteDeck = async (id?: number) => {
     if (!id) return
     await db.decks.delete(id)
     await loadDecks()
+    goeyToast.info('牌组已删除', {
+      fillColor: '#f8f5f2',
+      borderColor: '#e5ddd6',
+      spring: false,
+    })
   }
 
   const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
+    const lowerName = file.name.toLowerCase()
+    const isSupported =
+      lowerName.endsWith('.apkg') ||
+      lowerName.endsWith('.apk.1g') ||
+      lowerName.endsWith('.1g')
+    if (!isSupported) {
+      setImportStatus('暂不支持该文件类型，请使用 .apkg 或 .apk.1g')
+      goeyToast.warning('文件格式不支持', {
+        description: '请导入 .apkg 或 .apk.1g 文件',
+      })
+      if (fileRef.current) fileRef.current.value = ''
+      return
+    }
     setImportStatus('导入中...')
     try {
+      const toastId = goeyToast('正在导入牌组文件', {
+        description: file.name,
+        fillColor: '#f8f5f2',
+        borderColor: '#dfd7d0',
+        spring: true,
+        bounce: 0.2,
+      })
       const result = await importApkg(file)
       setImportStatus(`已导入 ${result.decksImported} 个牌组`)
       await loadDecks()
+      goeyToast.dismiss(toastId)
+      goeyToast.success('导入完成', {
+        description: `新增 ${result.decksImported} 个牌组`,
+        fillColor: '#f7e8ec',
+        borderColor: '#e7cfd7',
+      })
     } catch (error) {
       const message = error instanceof Error ? error.message : '导入失败'
       setImportStatus(message)
+      goeyToast.error('导入失败', {
+        description: message,
+        fillColor: '#f9ece8',
+        borderColor: '#e7c6bc',
+      })
     }
     if (fileRef.current) fileRef.current.value = ''
   }
@@ -93,7 +150,7 @@ function App() {
           <input
             ref={fileRef}
             type="file"
-            accept=".apkg"
+            accept=".apkg,.apk.1g,.1g"
             onChange={handleImport}
             className="block w-full text-xs text-stone-500 file:mr-3 file:rounded-lg file:border file:border-stone-300 file:bg-stone-100 file:px-3 file:py-1.5 file:text-xs"
           />
@@ -170,8 +227,8 @@ function App() {
   )
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-stone-100 via-rose-50/40 to-stone-100 text-stone-900">
-      <section className="mx-auto flex min-h-screen w-full max-w-md flex-col px-5 pb-24 pt-7">
+    <main className="min-h-screen bg-[#f2efeb] text-stone-900">
+      <section className="flex min-h-screen w-full flex-col px-5 pb-24 pt-7 md:px-8">
         <header className="mb-5 flex items-center justify-between">
           <div>
             <div className="text-[11px] uppercase tracking-[0.22em] text-stone-500">Focus Study</div>
@@ -184,10 +241,21 @@ function App() {
           </div>
         </header>
 
-        <div className="flex flex-1 flex-col gap-4">
-          {activeTab === 'study' ? <StudyView /> : null}
-          {activeTab === 'library' ? renderLibrary() : null}
-          {activeTab === 'cards' ? <CardManager /> : null}
+        <div className={`flex flex-1 flex-col gap-4 ${activeTab === 'study' ? '' : 'mx-auto w-full max-w-3xl'}`}>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.22, ease: 'easeOut' }}
+              className="flex flex-1 flex-col gap-4"
+            >
+              {activeTab === 'study' ? <StudyView /> : null}
+              {activeTab === 'library' ? renderLibrary() : null}
+              {activeTab === 'cards' ? <CardManager /> : null}
+            </motion.div>
+          </AnimatePresence>
         </div>
 
         <nav className="fixed bottom-4 left-1/2 z-20 w-[min(420px,calc(100%-2rem))] -translate-x-1/2 rounded-2xl border border-stone-200 bg-white/85 p-2 shadow-lg backdrop-blur">
@@ -212,6 +280,14 @@ function App() {
             </button>
           </div>
         </nav>
+
+        <GoeyToaster
+          position="top-center"
+          spring
+          bounce={0.24}
+          offset="20px"
+          theme="light"
+        />
       </section>
     </main>
   )

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { goeyToast } from 'goey-toast'
 import { db, type Card, type Deck } from '../data/db'
 import { createCard } from '../fsrs/engine'
 
@@ -46,12 +47,18 @@ export default function CardManager() {
   }
 
   const createNewCard = async () => {
-    if (decks.length === 0) return
+    if (decks.length === 0) {
+      goeyToast.warning('请先创建牌组')
+      return
+    }
     const deckId = selectedDeckId === 'all' ? decks[0].id : selectedDeckId
     if (!deckId) return
     const trimmedFront = front.trim()
     const trimmedBack = back.trim()
-    if (!trimmedFront || !trimmedBack) return
+    if (!trimmedFront || !trimmedBack) {
+      goeyToast.warning('请填写正反面内容')
+      return
+    }
     const base = createCard()
     const timestamp = nowIso()
     await db.cards.add({
@@ -74,12 +81,23 @@ export default function CardManager() {
     setFront('')
     setBack('')
     await refreshCards()
+    goeyToast.success('卡片已添加', {
+      fillColor: '#f7e8ec',
+      borderColor: '#e7cfd7',
+      spring: true,
+      bounce: 0.24,
+    })
   }
 
   const deleteCard = async (id?: number) => {
     if (!id) return
     await db.cards.delete(id)
     await refreshCards()
+    goeyToast.info('卡片已删除', {
+      fillColor: '#f8f5f2',
+      borderColor: '#e5ddd6',
+      spring: false,
+    })
   }
 
   return (
