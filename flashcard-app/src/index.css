@@ -3,11 +3,18 @@
 @tailwind utilities;
 
 :root {
+  --bg-canvas: #f7f3ec;
+  --bg-surface: #fffdf9;
+  --bg-soft: #efe8dc;
+  --text-primary: #1f2622;
+  --text-secondary: #5f6a64;
+  --accent-primary: #c97e5a;
+  --accent-secondary: #8d9e8f;
   font-family: "Noto Serif SC", "Source Han Serif SC", "Noto Serif", "Times New Roman", serif;
   line-height: 1.5;
   font-weight: 400;
-  color: #1f2a24;
-  background-color: #f6f3ef;
+  color: var(--text-primary);
+  background-color: var(--bg-canvas);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -22,7 +29,20 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background-color: #f6f3ef;
+  background:
+    radial-gradient(circle at 12% 14%, rgba(201, 126, 90, 0.18) 0, rgba(201, 126, 90, 0) 38%),
+    radial-gradient(circle at 88% 12%, rgba(141, 158, 143, 0.16) 0, rgba(141, 158, 143, 0) 44%),
+    linear-gradient(180deg, #faf7f2 0%, #f1ebe1 100%);
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.06;
+  background-image: radial-gradient(rgba(0, 0, 0, 0.12) 0.7px, transparent 0.7px);
+  background-size: 3px 3px;
 }
 
 a {

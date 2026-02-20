@@ -57,22 +57,28 @@ function App() {
       return
     }
     const timestamp = nowIso()
-    await db.decks.add({
-      name,
-      hash: crypto.randomUUID(),
-      isHidden: false,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    })
-    setNewName('')
-    await loadDecks()
-    goeyToast.success('牌组已创建', {
-      description: `已添加：${name}`,
-      fillColor: '#f7e8ec',
-      borderColor: '#e7cfd7',
-      spring: true,
-      bounce: 0.26,
-    })
+    try {
+      await db.decks.add({
+        name,
+        hash: crypto.randomUUID(),
+        isHidden: false,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      })
+      setNewName('')
+      await loadDecks()
+      goeyToast.success('牌组已创建', {
+        description: `已添加：${name}`,
+        fillColor: '#f7e8ec',
+        borderColor: '#e7cfd7',
+        spring: true,
+        bounce: 0.26,
+      })
+    } catch (error) {
+      goeyToast.error('创建失败', {
+        description: error instanceof Error ? error.message : '数据库写入失败',
+      })
+    }
   }
 
   const beginEdit = (deck: Deck) => {
@@ -88,53 +94,81 @@ function App() {
       goeyToast.warning('名称不能为空')
       return
     }
-    await db.decks.update(editingId, { name, updatedAt: nowIso() })
-    setEditingId(null)
-    setEditingName('')
-    await loadDecks()
-    goeyToast('牌组已重命名', {
-      description: name,
-      fillColor: '#f8f5f2',
-      borderColor: '#e5ddd6',
-      spring: false,
-    })
+    try {
+      await db.decks.update(editingId, { name, updatedAt: nowIso() })
+      setEditingId(null)
+      setEditingName('')
+      await loadDecks()
+      goeyToast('牌组已重命名', {
+        description: name,
+        fillColor: '#f8f5f2',
+        borderColor: '#e5ddd6',
+        spring: false,
+      })
+    } catch (error) {
+      goeyToast.error('重命名失败', {
+        description: error instanceof Error ? error.message : '数据库写入失败',
+      })
+    }
   }
 
   const deleteDeck = async (id?: number) => {
     if (!id) return
-    await db.decks.delete(id)
-    await loadDecks()
-    goeyToast.info('牌组已删除', {
-      fillColor: '#f8f5f2',
-      borderColor: '#e5ddd6',
-      spring: false,
-    })
+    try {
+      await db.transaction('rw', db.decks, db.cards, db.reviewLogs, async () => {
+        await db.cards.where('deckId').equals(id).delete()
+        await db.reviewLogs.where('deckId').equals(id).delete()
+        await db.decks.delete(id)
+      })
+      await loadDecks()
+      goeyToast.info('牌组已删除', {
+        fillColor: '#f8f5f2',
+        borderColor: '#e5ddd6',
+        spring: false,
+      })
+    } catch (error) {
+      goeyToast.error('删除失败', {
+        description: error instanceof Error ? error.message : '数据库写入失败',
+      })
+    }
   }
 
   const toggleDeckVisibility = async (deck: Deck) => {
     if (!deck.id) return
     const nextHidden = !deck.isHidden
-    await db.decks.update(deck.id, {
-      isHidden: nextHidden,
-      updatedAt: nowIso(),
-    })
-    await loadDecks()
-    goeyToast(nextHidden ? '已隐藏该牌组卡片' : '已恢复该牌组卡片', {
-      description: deck.name,
-      fillColor: '#f8f5f2',
-      borderColor: '#e5ddd6',
-      spring: false,
-    })
+    try {
+      await db.decks.update(deck.id, {
+        isHidden: nextHidden,
+        updatedAt: nowIso(),
+      })
+      await loadDecks()
+      goeyToast(nextHidden ? '已隐藏该牌组卡片' : '已恢复该牌组卡片', {
+        description: deck.name,
+        fillColor: '#f8f5f2',
+        borderColor: '#e5ddd6',
+        spring: false,
+      })
+    } catch (error) {
+      goeyToast.error('更新可见性失败', {
+        description: error instanceof Error ? error.message : '数据库写入失败',
+      })
+    }
   }
 
   const setAllDeckVisibility = async (showAll: boolean) => {
     const timestamp = nowIso()
-    await db.decks.toCollection().modify({
-      isHidden: !showAll,
-      updatedAt: timestamp,
-    })
-    await loadDecks()
-    goeyToast.success(showAll ? '已显示全部牌组卡片' : '已隐藏全部牌组卡片')
+    try {
+      await db.decks.toCollection().modify({
+        isHidden: !showAll,
+        updatedAt: timestamp,
+      })
+      await loadDecks()
+      goeyToast.success(showAll ? '已显示全部牌组卡片' : '已隐藏全部牌组卡片')
+    } catch (error) {
+      goeyToast.error('批量更新失败', {
+        description: error instanceof Error ? error.message : '数据库写入失败',
+      })
+    }
   }
 
   const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -348,7 +382,26 @@ function App() {
               transition={{ duration: 0.22, ease: 'easeOut' }}
               className="flex flex-1 flex-col gap-4"
             >
-              {activeTab === 'study' ? <StudyView visibleDeckIds={visibleDeckIds} /> : null}
+               {activeTab === 'study' ? (
+                 <>
+                   <section className="rounded-3xl border border-stone-200/80 bg-white/80 p-5 shadow-sm backdrop-blur">
+                     <div className="flex items-center justify-between">
+                       <div>
+                         <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Today Sprint</div>
+                         <h2 className="mt-1 text-xl font-semibold text-stone-800">先完成今日到期卡片</h2>
+                         <p className="mt-1 text-xs text-stone-500">保持节奏比一次刷很多更重要，建议每天 8-15 分钟。</p>
+                       </div>
+                       <button
+                         onClick={() => setActiveTab('cards')}
+                         className="h-10 rounded-xl border border-stone-300 bg-white px-3 text-xs text-stone-600"
+                       >
+                         新增卡片
+                       </button>
+                     </div>
+                   </section>
+                   <StudyView visibleDeckIds={visibleDeckIds} />
+                 </>
+               ) : null}
               {activeTab === 'library' ? renderLibrary() : null}
               {activeTab === 'cards' ? <CardManager visibleDeckIds={visibleDeckIds} /> : null}
             </motion.div>
