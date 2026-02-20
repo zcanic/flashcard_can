@@ -3,6 +3,7 @@ import { db, type Card } from '../data/db'
 import { reviewCard } from '../fsrs/engine'
 import { Rating, type CardInput, type Grade } from 'ts-fsrs'
 import MarkdownText from './MarkdownText'
+import { useHaptic } from '../hooks/useHaptic'
 
 type StudyViewProps = {
   deckId?: number
@@ -22,6 +23,7 @@ export default function StudyView({ deckId, visibleDeckIds }: StudyViewProps) {
   const [reveal, setReveal] = useState(false)
   const [sessionReviewed, setSessionReviewed] = useState(0)
   const [lastRating, setLastRating] = useState<Grade | null>(null)
+  const haptic = useHaptic()
   const visibleDeckIdsKey = useMemo(
     () => JSON.stringify(visibleDeckIds ?? []),
     [visibleDeckIds],
@@ -111,8 +113,9 @@ export default function StudyView({ deckId, visibleDeckIds }: StudyViewProps) {
     })
     setSessionReviewed((value) => value + 1)
     setLastRating(rating)
+    haptic.success()
     await loadCards()
-  }, [current, fsrsCard, loadCards])
+  }, [current, fsrsCard, haptic, loadCards])
 
   const postponeCard = useCallback(async () => {
     if (!current || current.id == null) return
@@ -123,8 +126,9 @@ export default function StudyView({ deckId, visibleDeckIds }: StudyViewProps) {
       dueAt: nextMorning.toISOString(),
       updatedAt: new Date().toISOString(),
     })
+    haptic.warning()
     await loadCards()
-  }, [current, loadCards])
+  }, [current, haptic, loadCards])
 
   useEffect(() => {
     const onKeydown = (event: KeyboardEvent) => {
@@ -175,12 +179,15 @@ export default function StudyView({ deckId, visibleDeckIds }: StudyViewProps) {
                 <div className="my-4 h-px bg-stone-200" />
                 <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Back</div>
                 <div className="mt-3 rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
-                  <MarkdownText content={current.back} />
+                <MarkdownText content={current.back} />
                 </div>
               </>
             ) : (
               <button
-                onClick={() => setReveal(true)}
+                onClick={() => {
+                  haptic.tap()
+                  setReveal(true)
+                }}
                 className="mt-2 h-12 rounded-xl border border-rose-200 bg-rose-100/80 px-4 text-sm font-medium text-stone-700"
               >
                 显示答案
