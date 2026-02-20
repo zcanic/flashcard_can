@@ -6,6 +6,8 @@ import CardManager from './components/CardManager'
 import StudyView from './components/StudyView'
 import StatsPanel from './components/StatsPanel'
 import { importApkg } from './anki/importer'
+import { createBackupSnapshot, restoreBackupSnapshot } from './backup/snapshot'
+import { createCard } from './fsrs/engine'
 
 const nowIso = () => new Date().toISOString()
 
@@ -18,6 +20,7 @@ function App() {
   const [editingName, setEditingName] = useState('')
   const [importStatus, setImportStatus] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement | null>(null)
+  const backupRef = useRef<HTMLInputElement | null>(null)
 
   const loadDecks = async () => {
     const items = await db.decks.orderBy('updatedAt').reverse().toArray()
@@ -47,8 +50,90 @@ function App() {
   }, [decks, libraryFilter])
 
   useEffect(() => {
-    loadDecks()
+    const bootstrap = async () => {
+      const count = await db.decks.count()
+      if (count === 0) {
+        const timestamp = nowIso()
+        const demoDeckId = await db.decks.add({
+          name: 'Starter · 日常英语',
+          hash: crypto.randomUUID(),
+          isHidden: false,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        })
+
+        const starters = [
+          ['Good morning', '早上好'],
+          ['How are you?', '你好吗？'],
+          ['Thank you', '谢谢你'],
+          ['See you later', '回头见'],
+          ['Could you help me?', '你能帮我吗？'],
+        ]
+        for (const [front, back] of starters) {
+          const base = createCard()
+          await db.cards.add({
+            deckId: demoDeckId,
+            front,
+            back,
+            dueAt: base.due.toISOString(),
+            stability: base.stability,
+            difficulty: base.difficulty,
+            elapsedDays: base.elapsed_days,
+            scheduledDays: base.scheduled_days,
+            learningSteps: base.learning_steps,
+            reps: base.reps,
+            lapses: base.lapses,
+            state: base.state,
+            lastReviewedAt: base.last_review ? base.last_review.toISOString() : null,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          })
+        }
+      }
+      await loadDecks()
+    }
+    bootstrap()
   }, [])
+
+  const exportBackup = async () => {
+    try {
+      const snapshot = await createBackupSnapshot()
+      const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = `flashcard-backup-${new Date().toISOString().slice(0, 10)}.json`
+      anchor.click()
+      URL.revokeObjectURL(url)
+      goeyToast.success('备份导出成功')
+    } catch (error) {
+      goeyToast.error('导出失败', {
+        description: error instanceof Error ? error.message : '未知错误',
+      })
+    }
+  }
+
+  const importBackup = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    try {
+      const text = await file.text()
+      const payload = JSON.parse(text) as unknown
+      const shouldReplace = window.confirm('导入将覆盖当前数据，是否继续？')
+      const result = await restoreBackupSnapshot(payload, shouldReplace ? 'replace' : 'merge')
+      await loadDecks()
+      goeyToast.success('备份导入成功', {
+        description: `牌组 ${result.decks} / 卡片 ${result.cards} / 记录 ${result.reviewLogs}`,
+      })
+    } catch (error) {
+      goeyToast.error('导入备份失败', {
+        description: error instanceof Error ? error.message : '文件格式错误',
+      })
+    }
+
+    if (backupRef.current) backupRef.current.value = ''
+  }
 
   const createDeck = async () => {
     const name = newName.trim()
@@ -260,6 +345,27 @@ function App() {
             className="block w-full text-xs text-stone-500 file:mr-3 file:rounded-lg file:border file:border-stone-300 file:bg-stone-100 file:px-3 file:py-1.5 file:text-xs"
           />
           {importStatus && <div className="text-xs text-stone-500">{importStatus}</div>}
+          <div className="flex gap-2">
+            <button
+              onClick={exportBackup}
+              className="h-9 rounded-lg border border-stone-300 bg-white px-3 text-xs text-stone-600"
+            >
+              导出备份 JSON
+            </button>
+            <button
+              onClick={() => backupRef.current?.click()}
+              className="h-9 rounded-lg border border-stone-300 bg-white px-3 text-xs text-stone-600"
+            >
+              导入备份 JSON
+            </button>
+            <input
+              ref={backupRef}
+              type="file"
+              accept="application/json"
+              onChange={importBackup}
+              className="hidden"
+            />
+          </div>
         </div>
 
         <div className="mt-4 flex gap-2">
