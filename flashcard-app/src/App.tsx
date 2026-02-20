@@ -1,5 +1,4 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
 import { GoeyToaster, goeyToast } from 'goey-toast'
 import { db, type Deck } from './data/db'
 import { createBackupSnapshot, restoreBackupSnapshot } from './backup/snapshot'
@@ -20,6 +19,10 @@ function App() {
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editingName, setEditingName] = useState('')
   const [importStatus, setImportStatus] = useState<string | null>(null)
+  const [isOnline, setIsOnline] = useState(() => window.navigator.onLine)
+  const [isStandalone, setIsStandalone] = useState(
+    () => window.matchMedia('(display-mode: standalone)').matches || Boolean((window.navigator as { standalone?: boolean }).standalone),
+  )
   const fileRef = useRef<HTMLInputElement | null>(null)
   const backupRef = useRef<HTMLInputElement | null>(null)
 
@@ -94,6 +97,23 @@ function App() {
       await loadDecks()
     }
     bootstrap()
+  }, [])
+
+  useEffect(() => {
+    const onOnline = () => setIsOnline(true)
+    const onOffline = () => setIsOnline(false)
+    const media = window.matchMedia('(display-mode: standalone)')
+    const onModeChange = () => setIsStandalone(media.matches || Boolean((window.navigator as { standalone?: boolean }).standalone))
+
+    window.addEventListener('online', onOnline)
+    window.addEventListener('offline', onOffline)
+    media.addEventListener('change', onModeChange)
+
+    return () => {
+      window.removeEventListener('online', onOnline)
+      window.removeEventListener('offline', onOffline)
+      media.removeEventListener('change', onModeChange)
+    }
   }, [])
 
   const exportBackup = async () => {
@@ -488,18 +508,21 @@ function App() {
 
         <InstallBanner />
 
+        {!isOnline ? (
+          <section className="mb-2 rounded-2xl border border-amber-300 bg-amber-50/90 px-3 py-2 text-xs text-amber-800">
+            当前离线：可继续学习与复习，联网后再导入和同步备份。
+          </section>
+        ) : null}
+
+        <section className="mb-2 flex items-center justify-between rounded-2xl border border-stone-200 bg-white/70 px-3 py-2 text-[11px] text-stone-600">
+          <span>{isStandalone ? '已作为桌面应用运行' : '建议添加到主屏幕获得完整体验'}</span>
+          <span className="rounded-full border border-stone-300 bg-white px-2 py-0.5 text-[10px]">{isOnline ? '在线' : '离线'}</span>
+        </section>
+
         <div className={`flex flex-1 flex-col gap-4 ${activeTab === 'study' ? '' : 'mx-auto w-full max-w-3xl'}`}>
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.22, ease: 'easeOut' }}
-              className="flex flex-1 flex-col gap-4"
-            >
+            <div className="flex flex-1 flex-col gap-4">
                {activeTab === 'study' ? (
-                 <>
+                  <>
                    <section className="rounded-3xl border border-stone-200/80 bg-white/80 p-5 shadow-sm backdrop-blur">
                      <div className="flex items-center justify-between">
                        <div>
@@ -526,8 +549,7 @@ function App() {
                    <CardManager visibleDeckIds={visibleDeckIds} />
                  </Suspense>
                ) : null}
-            </motion.div>
-          </AnimatePresence>
+            </div>
         </div>
 
         <nav className="fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom))] left-1/2 z-20 w-[min(420px,calc(100%-2rem))] -translate-x-1/2 rounded-2xl border border-stone-200 bg-white/88 p-2 shadow-lg backdrop-blur">

@@ -69,7 +69,6 @@ export default defineConfig({
       output: {
         manualChunks: {
           react: ['react', 'react-dom'],
-          motion: ['framer-motion'],
           storage: ['dexie'],
           importers: ['sql.js', '@zip.js/zip.js'],
         },
