@@ -2,21 +2,18 @@ import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { GoeyToaster, goeyToast } from 'goey-toast'
 import { Command } from 'cmdk'
 import * as Dialog from '@radix-ui/react-dialog'
-import { db, type Deck } from './data/db'
+import type { Deck } from './data/db'
 import { createBackupSnapshot, restoreBackupSnapshot } from './backup/snapshot'
-import { createCard } from './fsrs/engine'
 import InstallBanner from './components/InstallBanner'
+import { useDecks } from './hooks/useDecks'
 
 const StudyView = lazy(() => import('./components/StudyView'))
 const CardManager = lazy(() => import('./components/CardManager'))
 const StatsPanel = lazy(() => import('./components/StatsPanel'))
 
-const nowIso = () => new Date().toISOString()
-
 function App() {
   const [activeTab, setActiveTab] = useState<'study' | 'library' | 'cards'>('study')
   const [libraryFilter, setLibraryFilter] = useState<'all' | 'visible' | 'hidden'>('all')
-  const [decks, setDecks] = useState<Deck[]>([])
   const [newName, setNewName] = useState('')
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editingName, setEditingName] = useState('')
@@ -31,22 +28,18 @@ function App() {
   const fileRef = useRef<HTMLInputElement | null>(null)
   const backupRef = useRef<HTMLInputElement | null>(null)
 
-  const loadDecks = async () => {
-    const items = await db.decks.orderBy('updatedAt').reverse().toArray()
-    setDecks(items)
-  }
-
-  const visibleDeckIds = useMemo(
-    () => decks.filter((deck) => deck.id && !deck.isHidden).map((deck) => deck.id as number),
-    [decks],
-  )
-
-  const visibleDeckCount = useMemo(
-    () => decks.filter((deck) => !deck.isHidden).length,
-    [decks],
-  )
-
-  const hiddenDeckCount = decks.length - visibleDeckCount
+  const {
+    decks,
+    visibleDeckIds,
+    visibleDeckCount,
+    hiddenDeckCount,
+    loadDecks,
+    createDeck: createDeckRecord,
+    renameDeck,
+    deleteDeck: deleteDeckRecord,
+    toggleDeckVisibility: toggleDeckVisibilityRecord,
+    setAllDeckVisibility: setAllDeckVisibilityRecord,
+  } = useDecks()
 
   const filteredDecks = useMemo(() => {
     if (libraryFilter === 'visible') {
@@ -57,52 +50,6 @@ function App() {
     }
     return decks
   }, [decks, libraryFilter])
-
-  useEffect(() => {
-    const bootstrap = async () => {
-      const count = await db.decks.count()
-      if (count === 0) {
-        const timestamp = nowIso()
-        const demoDeckId = await db.decks.add({
-          name: 'Starter · 日常英语',
-          hash: crypto.randomUUID(),
-          isHidden: false,
-          createdAt: timestamp,
-          updatedAt: timestamp,
-        })
-
-        const starters = [
-          ['Good morning', '早上好'],
-          ['How are you?', '你好吗？'],
-          ['Thank you', '谢谢你'],
-          ['See you later', '回头见'],
-          ['Could you help me?', '你能帮我吗？'],
-        ]
-        for (const [front, back] of starters) {
-          const base = createCard()
-          await db.cards.add({
-            deckId: demoDeckId,
-            front,
-            back,
-            dueAt: base.due.toISOString(),
-            stability: base.stability,
-            difficulty: base.difficulty,
-            elapsedDays: base.elapsed_days,
-            scheduledDays: base.scheduled_days,
-            learningSteps: base.learning_steps,
-            reps: base.reps,
-            lapses: base.lapses,
-            state: base.state,
-            lastReviewedAt: base.last_review ? base.last_review.toISOString() : null,
-            createdAt: timestamp,
-            updatedAt: timestamp,
-          })
-        }
-      }
-      await loadDecks()
-    }
-    bootstrap()
-  }, [])
 
   useEffect(() => {
     const onKeydown = (event: KeyboardEvent) => {
@@ -192,17 +139,9 @@ function App() {
       goeyToast.warning('请输入牌组名称', { spring: true, bounce: 0.22 })
       return
     }
-    const timestamp = nowIso()
     try {
-      await db.decks.add({
-        name,
-        hash: crypto.randomUUID(),
-        isHidden: false,
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      })
+      await createDeckRecord(name)
       setNewName('')
-      await loadDecks()
       goeyToast.success('牌组已创建', {
         description: `已添加：${name}`,
         fillColor: '#f7e8ec',
@@ -231,10 +170,9 @@ function App() {
       return
     }
     try {
-      await db.decks.update(editingId, { name, updatedAt: nowIso() })
+      await renameDeck(editingId, name)
       setEditingId(null)
       setEditingName('')
-      await loadDecks()
       goeyToast('牌组已重命名', {
         description: name,
         fillColor: '#f8f5f2',
@@ -251,12 +189,7 @@ function App() {
   const deleteDeck = async (id?: number) => {
     if (!id) return
     try {
-      await db.transaction('rw', db.decks, db.cards, db.reviewLogs, async () => {
-        await db.cards.where('deckId').equals(id).delete()
-        await db.reviewLogs.where('deckId').equals(id).delete()
-        await db.decks.delete(id)
-      })
-      await loadDecks()
+      await deleteDeckRecord(id)
       goeyToast.info('牌组已删除', {
         fillColor: '#f8f5f2',
         borderColor: '#e5ddd6',
@@ -271,13 +204,9 @@ function App() {
 
   const toggleDeckVisibility = async (deck: Deck) => {
     if (!deck.id) return
-    const nextHidden = !deck.isHidden
     try {
-      await db.decks.update(deck.id, {
-        isHidden: nextHidden,
-        updatedAt: nowIso(),
-      })
-      await loadDecks()
+      const nextHidden = !deck.isHidden
+      await toggleDeckVisibilityRecord(deck)
       goeyToast(nextHidden ? '已隐藏该牌组卡片' : '已恢复该牌组卡片', {
         description: deck.name,
         fillColor: '#f8f5f2',
@@ -292,13 +221,8 @@ function App() {
   }
 
   const setAllDeckVisibility = async (showAll: boolean) => {
-    const timestamp = nowIso()
     try {
-      await db.decks.toCollection().modify({
-        isHidden: !showAll,
-        updatedAt: timestamp,
-      })
-      await loadDecks()
+      await setAllDeckVisibilityRecord(showAll)
       goeyToast.success(showAll ? '已显示全部牌组卡片' : '已隐藏全部牌组卡片')
     } catch (error) {
       goeyToast.error('批量更新失败', {
