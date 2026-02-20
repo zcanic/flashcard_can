@@ -1,5 +1,7 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { GoeyToaster, goeyToast } from 'goey-toast'
+import { Command } from 'cmdk'
+import * as Dialog from '@radix-ui/react-dialog'
 import { db, type Deck } from './data/db'
 import { createBackupSnapshot, restoreBackupSnapshot } from './backup/snapshot'
 import { createCard } from './fsrs/engine'
@@ -19,6 +21,9 @@ function App() {
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editingName, setEditingName] = useState('')
   const [importStatus, setImportStatus] = useState<string | null>(null)
+  const [commandOpen, setCommandOpen] = useState(false)
+  const [backupDialogOpen, setBackupDialogOpen] = useState(false)
+  const [backupCandidate, setBackupCandidate] = useState<unknown | null>(null)
   const [isOnline, setIsOnline] = useState(() => window.navigator.onLine)
   const [isStandalone, setIsStandalone] = useState(
     () => window.matchMedia('(display-mode: standalone)').matches || Boolean((window.navigator as { standalone?: boolean }).standalone),
@@ -100,6 +105,18 @@ function App() {
   }, [])
 
   useEffect(() => {
+    const onKeydown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setCommandOpen((value) => !value)
+      }
+    }
+
+    window.addEventListener('keydown', onKeydown)
+    return () => window.removeEventListener('keydown', onKeydown)
+  }, [])
+
+  useEffect(() => {
     const onOnline = () => setIsOnline(true)
     const onOffline = () => setIsOnline(false)
     const media = window.matchMedia('(display-mode: standalone)')
@@ -141,12 +158,8 @@ function App() {
     try {
       const text = await file.text()
       const payload = JSON.parse(text) as unknown
-      const shouldReplace = window.confirm('导入将覆盖当前数据，是否继续？')
-      const result = await restoreBackupSnapshot(payload, shouldReplace ? 'replace' : 'merge')
-      await loadDecks()
-      goeyToast.success('备份导入成功', {
-        description: `牌组 ${result.decks} / 卡片 ${result.cards} / 记录 ${result.reviewLogs}`,
-      })
+      setBackupCandidate(payload)
+      setBackupDialogOpen(true)
     } catch (error) {
       goeyToast.error('导入备份失败', {
         description: error instanceof Error ? error.message : '文件格式错误',
@@ -154,6 +167,23 @@ function App() {
     }
 
     if (backupRef.current) backupRef.current.value = ''
+  }
+
+  const restoreBackup = async (mode: 'replace' | 'merge') => {
+    if (!backupCandidate) return
+    try {
+      const result = await restoreBackupSnapshot(backupCandidate, mode)
+      await loadDecks()
+      goeyToast.success('备份导入成功', {
+        description: `牌组 ${result.decks} / 卡片 ${result.cards} / 记录 ${result.reviewLogs}`,
+      })
+      setBackupDialogOpen(false)
+      setBackupCandidate(null)
+    } catch (error) {
+      goeyToast.error('导入备份失败', {
+        description: error instanceof Error ? error.message : '文件格式错误',
+      })
+    }
   }
 
   const createDeck = async () => {
@@ -335,6 +365,16 @@ function App() {
     <div className="rounded-2xl border border-stone-200 bg-white/70 p-4 text-xs text-stone-500">加载中...</div>
   )
 
+  const backupPreview = useMemo(() => {
+    if (!backupCandidate || typeof backupCandidate !== 'object') return null
+    const input = backupCandidate as { decks?: unknown[]; cards?: unknown[]; reviewLogs?: unknown[] }
+    return {
+      decks: Array.isArray(input.decks) ? input.decks.length : 0,
+      cards: Array.isArray(input.cards) ? input.cards.length : 0,
+      reviewLogs: Array.isArray(input.reviewLogs) ? input.reviewLogs.length : 0,
+    }
+  }, [backupCandidate])
+
   const renderLibrary = () => (
     <>
       <section className="rounded-3xl border border-stone-200/70 bg-white/80 p-5 shadow-sm backdrop-blur">
@@ -508,6 +548,13 @@ function App() {
 
         <InstallBanner />
 
+        <button
+          onClick={() => setCommandOpen(true)}
+          className="mb-2 h-9 rounded-xl border border-stone-300 bg-white/75 px-3 text-xs text-stone-600"
+        >
+          打开命令面板 ⌘K / Ctrl+K
+        </button>
+
         {!isOnline ? (
           <section className="mb-2 rounded-2xl border border-amber-300 bg-amber-50/90 px-3 py-2 text-xs text-amber-800">
             当前离线：可继续学习与复习，联网后再导入和同步备份。
@@ -582,6 +629,74 @@ function App() {
           offset="20px"
           theme="light"
         />
+
+        <Dialog.Root open={backupDialogOpen} onOpenChange={setBackupDialogOpen}>
+          <Dialog.Portal>
+            <Dialog.Overlay className="fixed inset-0 z-30 bg-stone-900/35" />
+            <Dialog.Content className="fixed left-1/2 top-1/2 z-40 w-[min(90vw,420px)] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-stone-200 bg-white p-5 shadow-2xl">
+              <Dialog.Title className="text-sm font-semibold text-stone-800">选择备份导入模式</Dialog.Title>
+              <Dialog.Description className="mt-1 text-xs text-stone-500">
+                合并会保留当前数据，覆盖会清空现有数据后导入。
+              </Dialog.Description>
+              {backupPreview ? (
+                <div className="mt-3 rounded-xl border border-stone-200 bg-stone-50 p-3 text-xs text-stone-600">
+                  预览：牌组 {backupPreview.decks} / 卡片 {backupPreview.cards} / 记录 {backupPreview.reviewLogs}
+                </div>
+              ) : null}
+              <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                <button
+                  onClick={() => void restoreBackup('merge')}
+                  className="h-10 rounded-xl border border-stone-300 bg-white"
+                >
+                  合并导入
+                </button>
+                <button
+                  onClick={() => void restoreBackup('replace')}
+                  className="h-10 rounded-xl border border-rose-200 bg-rose-100 text-stone-700"
+                >
+                  覆盖导入
+                </button>
+              </div>
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
+
+        <Command.Dialog
+          open={commandOpen}
+          onOpenChange={setCommandOpen}
+          label="全局命令面板"
+          className="fixed left-1/2 top-24 z-40 w-[min(92vw,520px)] -translate-x-1/2 overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl"
+        >
+          <Command.Input
+            placeholder="输入命令..."
+            className="h-11 w-full border-b border-stone-200 px-3 text-sm outline-none"
+          />
+          <Command.List className="max-h-80 overflow-y-auto p-2 text-sm">
+            <Command.Empty className="p-3 text-xs text-stone-500">没有匹配命令</Command.Empty>
+            <Command.Group heading="导航" className="text-xs text-stone-500">
+              <Command.Item className="cursor-pointer rounded-lg px-2 py-2" onSelect={() => { setActiveTab('study'); setCommandOpen(false) }}>
+                前往：学习
+              </Command.Item>
+              <Command.Item className="cursor-pointer rounded-lg px-2 py-2" onSelect={() => { setActiveTab('library'); setCommandOpen(false) }}>
+                前往：牌组
+              </Command.Item>
+              <Command.Item className="cursor-pointer rounded-lg px-2 py-2" onSelect={() => { setActiveTab('cards'); setCommandOpen(false) }}>
+                前往：卡片
+              </Command.Item>
+            </Command.Group>
+            <Command.Group heading="操作" className="text-xs text-stone-500">
+              <Command.Item className="cursor-pointer rounded-lg px-2 py-2" onSelect={() => { void exportBackup(); setCommandOpen(false) }}>
+                导出备份
+              </Command.Item>
+              <Command.Item className="cursor-pointer rounded-lg px-2 py-2" onSelect={() => { fileRef.current?.click(); setCommandOpen(false) }}>
+                导入 APKG
+              </Command.Item>
+              <Command.Item className="cursor-pointer rounded-lg px-2 py-2" onSelect={() => { backupRef.current?.click(); setCommandOpen(false) }}>
+                导入 JSON 备份
+              </Command.Item>
+            </Command.Group>
+          </Command.List>
+        </Command.Dialog>
       </section>
     </main>
   )

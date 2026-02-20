@@ -1,4 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+} from 'recharts'
 import { db } from '../data/db'
 
 type Stats = {
@@ -88,8 +96,6 @@ export default function StatsPanel({ visibleDeckIds }: StatsPanelProps) {
     loadStats()
   }, [loadStats, visibleDeckIdsKey])
 
-  const maxWeekCount = weekReviews.reduce((max, item) => Math.max(max, item.count), 1)
-
   return (
     <section className="rounded-3xl border border-stone-200 bg-white/70 p-5 shadow-sm space-y-4">
       <header className="space-y-2">
@@ -120,19 +126,36 @@ export default function StatsPanel({ visibleDeckIds }: StatsPanelProps) {
           <span>近 7 天复习量</span>
           <span>今日正确率 {todayAccuracy}%</span>
         </div>
-        <div className="mt-3 grid grid-cols-7 gap-2">
-          {weekReviews.map((item) => (
-            <div key={item.day} className="flex flex-col items-center gap-1">
-              <div className="flex h-16 w-full items-end">
-                <div
-                  className="w-full rounded-md bg-rose-200/80"
-                  style={{ height: `${Math.max(8, (item.count / maxWeekCount) * 64)}px` }}
-                  title={`${item.day}: ${item.count}`}
-                />
-              </div>
-              <div className="text-[10px] text-stone-500">{item.day}</div>
-            </div>
-          ))}
+        <div className="mt-3 h-40 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={weekReviews} margin={{ left: 0, right: 6, top: 6, bottom: 0 }}>
+              <defs>
+                <linearGradient id="weekReviewFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#f2a790" stopOpacity={0.65} />
+                  <stop offset="100%" stopColor="#f2a790" stopOpacity={0.1} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#d6d3d1" vertical={false} />
+              <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#6b7280' }} />
+              <Tooltip
+                formatter={(value: number | string | undefined) => [`${value ?? 0} 次`, '复习量']}
+                labelFormatter={(value) => `${value}`}
+                contentStyle={{
+                  borderRadius: 12,
+                  borderColor: '#d6d3d1',
+                  fontSize: 12,
+                  color: '#44403c',
+                }}
+              />
+              <Area
+                type="monotone"
+                dataKey="count"
+                stroke="#cf7f66"
+                strokeWidth={2}
+                fill="url(#weekReviewFill)"
+              />
+            </AreaChart>
+          </ResponsiveContainer>
         </div>
       </div>
     </section>

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { db, type Card } from '../data/db'
 import { reviewCard } from '../fsrs/engine'
 import { Rating, type CardInput, type Grade } from 'ts-fsrs'
+import MarkdownText from './MarkdownText'
 
 type StudyViewProps = {
   deckId?: number
@@ -165,13 +166,17 @@ export default function StudyView({ deckId, visibleDeckIds }: StudyViewProps) {
           <div className="flex flex-1 flex-col rounded-3xl border border-stone-200 bg-white p-7 shadow-[0_22px_42px_-34px_rgba(28,25,23,0.45)]">
             <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Front</div>
             <div className="mt-4 flex flex-1 items-center justify-center py-8">
-              <p className="max-w-3xl text-center text-2xl leading-relaxed text-stone-800">{current.front}</p>
+              <div className="w-full max-w-3xl rounded-2xl border border-stone-200 bg-stone-50/70 p-4 text-left">
+                <MarkdownText content={current.front} />
+              </div>
             </div>
             {reveal ? (
               <>
                 <div className="my-4 h-px bg-stone-200" />
                 <div className="text-xs uppercase tracking-[0.18em] text-stone-500">Back</div>
-                <p className="mt-3 pb-2 text-lg leading-relaxed text-stone-700">{current.back}</p>
+                <div className="mt-3 rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
+                  <MarkdownText content={current.back} />
+                </div>
               </>
             ) : (
               <button

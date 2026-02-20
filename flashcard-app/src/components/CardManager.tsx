@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { goeyToast } from 'goey-toast'
 import { db, type Card, type Deck } from '../data/db'
 import { createCard } from '../fsrs/engine'
+import MarkdownText from './MarkdownText'
 
 type CardRow = Card & { deckName: string | null }
 
@@ -240,6 +241,18 @@ export default function CardManager({ visibleDeckIds }: CardManagerProps) {
           >
             添加卡片
           </button>
+          {(front.trim() || back.trim()) && (
+            <div className="grid gap-2 rounded-xl border border-stone-200 bg-stone-50 p-3 text-xs">
+              <div>
+                <div className="mb-1 text-[10px] uppercase tracking-[0.14em] text-stone-500">预览正面</div>
+                <MarkdownText content={front || '（空）'} compact />
+              </div>
+              <div>
+                <div className="mb-1 text-[10px] uppercase tracking-[0.14em] text-stone-500">预览背面</div>
+                <MarkdownText content={back || '（空）'} compact />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -281,8 +294,12 @@ export default function CardManager({ visibleDeckIds }: CardManagerProps) {
               ) : (
                 <>
                   <div className="space-y-1">
-                    <p className="text-sm font-medium text-stone-800">{card.front}</p>
-                    <p className="text-xs text-stone-600">{card.back}</p>
+                    <div className="rounded-xl border border-stone-200 bg-stone-50/70 p-2">
+                      <MarkdownText content={card.front} compact />
+                    </div>
+                    <div className="rounded-xl border border-stone-200 bg-stone-50/70 p-2">
+                      <MarkdownText content={card.back} compact />
+                    </div>
                     <p className="text-[11px] text-stone-500">{card.deckName ?? '未命名'} · Due {new Date(card.dueAt).toLocaleDateString()}</p>
                   </div>
                   <div className="mt-3 flex justify-end gap-2">
