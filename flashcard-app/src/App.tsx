@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { GoeyToaster, goeyToast } from 'goey-toast'
 import { db, type Deck } from './data/db'
-import CardManager from './components/CardManager'
-import StudyView from './components/StudyView'
-import StatsPanel from './components/StatsPanel'
-import { importApkg } from './anki/importer'
 import { createBackupSnapshot, restoreBackupSnapshot } from './backup/snapshot'
 import { createCard } from './fsrs/engine'
+import InstallBanner from './components/InstallBanner'
+
+const StudyView = lazy(() => import('./components/StudyView'))
+const CardManager = lazy(() => import('./components/CardManager'))
+const StatsPanel = lazy(() => import('./components/StatsPanel'))
 
 const nowIso = () => new Date().toISOString()
 
@@ -281,6 +282,7 @@ function App() {
         spring: true,
         bounce: 0.2,
       })
+      const { importApkg } = await import('./anki/importer')
       const result = await importApkg(file)
       setImportStatus(`已导入 ${result.decksImported} 个牌组`)
       await loadDecks()
@@ -308,6 +310,10 @@ function App() {
       day: 'numeric',
       weekday: 'short',
     })
+
+  const contentFallback = (
+    <div className="rounded-2xl border border-stone-200 bg-white/70 p-4 text-xs text-stone-500">加载中...</div>
+  )
 
   const renderLibrary = () => (
     <>
@@ -384,7 +390,9 @@ function App() {
         </div>
       </section>
 
-      <StatsPanel visibleDeckIds={visibleDeckIds} />
+      <Suspense fallback={contentFallback}>
+        <StatsPanel visibleDeckIds={visibleDeckIds} />
+      </Suspense>
 
       <section className="flex items-center justify-between rounded-2xl border border-stone-200 bg-white/70 px-3 py-2 text-xs text-stone-600">
         <span>筛选牌组</span>
@@ -465,7 +473,7 @@ function App() {
 
   return (
     <main className="min-h-screen bg-[#f2efeb] text-stone-900">
-      <section className="flex min-h-screen w-full flex-col px-5 pb-24 pt-7 md:px-8">
+      <section className="flex min-h-screen w-full flex-col px-5 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-[calc(1.25rem+env(safe-area-inset-top))] md:px-8">
         <header className="mb-5 flex items-center justify-between">
           <div>
             <div className="text-[11px] uppercase tracking-[0.22em] text-stone-500">Focus Study</div>
@@ -477,6 +485,8 @@ function App() {
             {formatToday()}
           </div>
         </header>
+
+        <InstallBanner />
 
         <div className={`flex flex-1 flex-col gap-4 ${activeTab === 'study' ? '' : 'mx-auto w-full max-w-3xl'}`}>
           <AnimatePresence mode="wait">
@@ -505,16 +515,22 @@ function App() {
                        </button>
                      </div>
                    </section>
-                   <StudyView visibleDeckIds={visibleDeckIds} />
-                 </>
+                   <Suspense fallback={contentFallback}>
+                     <StudyView visibleDeckIds={visibleDeckIds} />
+                   </Suspense>
+                  </>
+                ) : null}
+               {activeTab === 'library' ? renderLibrary() : null}
+               {activeTab === 'cards' ? (
+                 <Suspense fallback={contentFallback}>
+                   <CardManager visibleDeckIds={visibleDeckIds} />
+                 </Suspense>
                ) : null}
-              {activeTab === 'library' ? renderLibrary() : null}
-              {activeTab === 'cards' ? <CardManager visibleDeckIds={visibleDeckIds} /> : null}
             </motion.div>
           </AnimatePresence>
         </div>
 
-        <nav className="fixed bottom-4 left-1/2 z-20 w-[min(420px,calc(100%-2rem))] -translate-x-1/2 rounded-2xl border border-stone-200 bg-white/85 p-2 shadow-lg backdrop-blur">
+        <nav className="fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom))] left-1/2 z-20 w-[min(420px,calc(100%-2rem))] -translate-x-1/2 rounded-2xl border border-stone-200 bg-white/88 p-2 shadow-lg backdrop-blur">
           <div className="grid grid-cols-3 gap-2 text-xs">
             <button
               onClick={() => setActiveTab('study')}
