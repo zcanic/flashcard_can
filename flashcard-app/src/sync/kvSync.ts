@@ -10,20 +10,27 @@ export type SyncClient = {
 }
 
 export class KvSync implements SyncClient {
-  constructor(private endpoint: string) {}
+  private endpoint: string
+
+  constructor(endpoint: string) {
+    this.endpoint = endpoint
+  }
 
   async push(payload: SyncPayload) {
-    await fetch(`${this.endpoint}/push`, {
+    const response = await fetch(`${this.endpoint}/push`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
     })
+    if (!response.ok) {
+      throw new Error(`Sync push failed: ${response.status}`)
+    }
   }
 
   async pull(deckHash: string) {
-    const response = await fetch(`${this.endpoint}/pull?deck=${deckHash}`)
+    const response = await fetch(`${this.endpoint}/pull?deck=${encodeURIComponent(deckHash)}`)
     if (!response.ok) return null
     return (await response.json()) as SyncPayload
   }
