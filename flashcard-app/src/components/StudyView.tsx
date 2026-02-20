@@ -1,14 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { db, type Card } from '../data/db'
 import { reviewCard } from '../fsrs/engine'
-import { Rating } from 'ts-fsrs'
+import { Rating, type CardInput, type Grade } from 'ts-fsrs'
 
 type StudyViewProps = {
   deckId?: number
   visibleDeckIds?: number[]
 }
 
-const ratingLabels: Array<{ value: Rating; label: string; tone: string }> = [
+const ratingLabels: Array<{ value: Grade; label: string; tone: string }> = [
   { value: Rating.Again, label: 'Again', tone: 'text-rose-700' },
   { value: Rating.Hard, label: 'Hard', tone: 'text-stone-600' },
   { value: Rating.Good, label: 'Good', tone: 'text-stone-800' },
@@ -19,8 +19,14 @@ export default function StudyView({ deckId, visibleDeckIds }: StudyViewProps) {
   const [cards, setCards] = useState<Card[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [reveal, setReveal] = useState(false)
+  const [sessionReviewed, setSessionReviewed] = useState(0)
+  const [lastRating, setLastRating] = useState<Grade | null>(null)
+  const visibleDeckIdsKey = useMemo(
+    () => JSON.stringify(visibleDeckIds ?? []),
+    [visibleDeckIds],
+  )
 
-  const loadCards = async () => {
+  const loadCards = useCallback(async () => {
     const nowIso = new Date().toISOString()
     const visibleDeckIdSet = new Set(visibleDeckIds ?? [])
     const hasVisibilityFilter = Array.isArray(visibleDeckIds)
@@ -32,17 +38,17 @@ export default function StudyView({ deckId, visibleDeckIds }: StudyViewProps) {
     setCards(list)
     setCurrentIndex(0)
     setReveal(false)
-  }
+  }, [deckId, visibleDeckIds])
 
   useEffect(() => {
     loadCards()
-  }, [deckId, visibleDeckIds.join(',')])
+  }, [deckId, loadCards, visibleDeckIdsKey])
 
   const current = cards[currentIndex]
 
-  const handleRating = async (rating: Rating) => {
-    if (!current || !current.id) return
-    const fsrsCard = {
+  const fsrsCard: CardInput | null = useMemo(() => {
+    if (!current) return null
+    return {
       due: new Date(current.dueAt),
       stability: current.stability,
       difficulty: current.difficulty,
@@ -52,24 +58,94 @@ export default function StudyView({ deckId, visibleDeckIds }: StudyViewProps) {
       reps: current.reps,
       lapses: current.lapses,
       state: current.state,
-      last_review: current.lastReviewedAt ? new Date(current.lastReviewedAt) : null,
+      last_review: current.lastReviewedAt ? new Date(current.lastReviewedAt) : undefined,
     }
+  }, [current])
+
+  const nextIntervals = useMemo(() => {
+    if (!fsrsCard) return new Map<Grade, string>()
+    const map = new Map<Grade, string>()
+    ratingLabels.forEach((item) => {
+      const preview = reviewCard(fsrsCard, item.value)
+      map.set(
+        item.value,
+        preview.next.due.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' }),
+      )
+    })
+    return map
+  }, [fsrsCard])
+
+  const handleRating = useCallback(async (rating: Grade) => {
+    if (!current || current.id == null) return
+    const cardId = current.id
+    const deckId = current.deckId
+    if (!fsrsCard) return
     const result = reviewCard(fsrsCard, rating)
+    const nowIso = new Date().toISOString()
+    await db.transaction('rw', db.cards, db.reviewLogs, async () => {
+      await db.cards.update(cardId, {
+        dueAt: result.next.due.toISOString(),
+        stability: result.next.stability,
+        difficulty: result.next.difficulty,
+        elapsedDays: result.next.elapsed_days,
+        scheduledDays: result.next.scheduled_days,
+        learningSteps: result.next.learning_steps,
+        reps: result.next.reps,
+        lapses: result.next.lapses,
+        state: result.next.state,
+        lastReviewedAt: result.next.last_review ? result.next.last_review.toISOString() : null,
+        updatedAt: nowIso,
+      })
+      await db.reviewLogs.add({
+        cardId,
+        deckId,
+        rating,
+        reviewedAt: nowIso,
+        scheduledAt: result.next.due.toISOString(),
+        elapsedDays: result.log.log.elapsed_days,
+        scheduledDays: result.log.log.scheduled_days,
+        stability: result.log.log.stability,
+        difficulty: result.log.log.difficulty,
+      })
+    })
+    setSessionReviewed((value) => value + 1)
+    setLastRating(rating)
+    await loadCards()
+  }, [current, fsrsCard, loadCards])
+
+  const postponeCard = useCallback(async () => {
+    if (!current || current.id == null) return
+    const nextMorning = new Date()
+    nextMorning.setDate(nextMorning.getDate() + 1)
+    nextMorning.setHours(8, 0, 0, 0)
     await db.cards.update(current.id, {
-      dueAt: result.next.due.toISOString(),
-      stability: result.next.stability,
-      difficulty: result.next.difficulty,
-      elapsedDays: result.next.elapsed_days,
-      scheduledDays: result.next.scheduled_days,
-      learningSteps: result.next.learning_steps,
-      reps: result.next.reps,
-      lapses: result.next.lapses,
-      state: result.next.state,
-      lastReviewedAt: result.next.last_review ? result.next.last_review.toISOString() : null,
+      dueAt: nextMorning.toISOString(),
       updatedAt: new Date().toISOString(),
     })
     await loadCards()
-  }
+  }, [current, loadCards])
+
+  useEffect(() => {
+    const onKeydown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null
+      if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return
+
+      if (event.code === 'Space') {
+        event.preventDefault()
+        if (current && !reveal) setReveal(true)
+      }
+      if (!reveal) return
+
+      if (event.key === '1') void handleRating(Rating.Again)
+      if (event.key === '2') void handleRating(Rating.Hard)
+      if (event.key === '3') void handleRating(Rating.Good)
+      if (event.key === '4') void handleRating(Rating.Easy)
+      if (event.key.toLowerCase() === 's') void postponeCard()
+    }
+
+    window.addEventListener('keydown', onKeydown)
+    return () => window.removeEventListener('keydown', onKeydown)
+  }, [current, handleRating, postponeCard, reveal])
 
   return (
     <section className="flex min-h-[calc(100vh-11rem)] flex-col">
@@ -78,7 +154,10 @@ export default function StudyView({ deckId, visibleDeckIds }: StudyViewProps) {
           <div className="text-xs tracking-wide text-stone-500">今日待复习</div>
           <div className="text-4xl font-semibold text-stone-800">{cards.length}</div>
         </div>
-        <div className="text-xs text-stone-500">卡片模式</div>
+        <div className="text-right text-xs text-stone-500">
+          <div>本次已完成 {sessionReviewed}</div>
+          <div>{lastRating == null ? '准备开始' : `上一题：${Rating[lastRating]}`}</div>
+        </div>
       </header>
 
       {current ? (
@@ -110,11 +189,18 @@ export default function StudyView({ deckId, visibleDeckIds }: StudyViewProps) {
                 <button
                   key={item.value}
                   onClick={() => handleRating(item.value)}
-                  className={`h-12 rounded-xl border border-stone-200 bg-white text-sm font-medium ${item.tone}`}
+                  className={`h-14 rounded-xl border border-stone-200 bg-white px-3 text-sm font-medium ${item.tone}`}
                 >
-                  {item.label}
+                  <div>{item.label}</div>
+                  <div className="text-[10px] text-stone-500">{nextIntervals.get(item.value) ?? ''}</div>
                 </button>
               ))}
+              <button
+                onClick={postponeCard}
+                className="col-span-2 h-11 rounded-xl border border-stone-300 bg-stone-100 text-xs text-stone-600"
+              >
+                稍后再看（S）
+              </button>
             </div>
           )}
         </div>
